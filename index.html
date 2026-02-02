@@ -90,7 +90,6 @@
       background: var(--yes);
       color: #fff;
     }
-
     #yesBtn:hover { background: var(--yesHover); }
 
     #noBtn {
@@ -183,11 +182,9 @@
 
     <section class="result" id="result">
       <h2>YAY! 🎉</h2>
-      <img
-        class="fireworks"
-        src="https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif"
-        alt="Fireworks"
-      />
+      <img class="fireworks"
+           src="https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif"
+           alt="Fireworks" />
     </section>
   </main>
 
@@ -198,19 +195,33 @@
     const result = document.getElementById("result");
     const hint = document.getElementById("hint");
 
-    /* CONFETTI */
+    /* ---------- SOUND (ROMANTIC) ---------- */
+    // You can replace this URL with any mp3 you like
+    const yesSound = new Audio("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
+    yesSound.preload = "auto";
+    yesSound.volume = 0.35;
+
+    /* ---------- VIBRATION ---------- */
+    function vibrate(pattern) {
+      if ("vibrate" in navigator) {
+        navigator.vibrate(pattern);
+      }
+    }
+
+    /* ---------- CONFETTI ---------- */
     const confettiCanvas = document.getElementById("confettiCanvas");
 
     function resizeConfettiCanvas() {
       const dpr = Math.max(1, window.devicePixelRatio || 1);
-      confettiCanvas.width = window.innerWidth * dpr;
-      confettiCanvas.height = window.innerHeight * dpr;
+      confettiCanvas.width = Math.floor(window.innerWidth * dpr);
+      confettiCanvas.height = Math.floor(window.innerHeight * dpr);
       confettiCanvas.style.width = "100vw";
       confettiCanvas.style.height = "100vh";
     }
 
     resizeConfettiCanvas();
     window.addEventListener("resize", resizeConfettiCanvas);
+    window.addEventListener("orientationchange", () => setTimeout(resizeConfettiCanvas, 150));
 
     const confettiInstance = confetti.create(confettiCanvas, {
       resize: false,
@@ -219,6 +230,7 @@
 
     function fullScreenConfetti() {
       const end = Date.now() + 1600;
+
       (function frame() {
         confettiInstance({
           particleCount: 12,
@@ -241,24 +253,24 @@
       }, 300);
     }
 
-    /* YES GROWS */
+    /* ---------- YES BUTTON GROWS ---------- */
     let yesScale = 1;
     function growYes() {
       yesScale = Math.min(2.2, yesScale + 0.1);
       yesBtn.style.transform = `translateY(-50%) scale(${yesScale})`;
     }
 
-    /* NO RUNS AWAY (DESKTOP + MOBILE) */
+    /* ---------- NO BUTTON RUNS AWAY (MOBILE FIX) ---------- */
     function clamp(n, min, max) {
       return Math.max(min, Math.min(max, n));
     }
 
-    function moveNo(x, y) {
+    function moveNo(clientX, clientY) {
       const z = zone.getBoundingClientRect();
       const b = noBtn.getBoundingClientRect();
 
-      const px = x - z.left;
-      const py = y - z.top;
+      const px = clientX - z.left;
+      const py = clientY - z.top;
 
       const cx = (b.left - z.left) + b.width / 2;
       const cy = (b.top - z.top) + b.height / 2;
@@ -269,8 +281,8 @@
       dx /= mag;
       dy /= mag;
 
-      let newLeft = (b.left - z.left) + dx * 160;
-      let newTop  = (b.top - z.top) + dy * 160;
+      let newLeft = (b.left - z.left) + dx * 170;
+      let newTop  = (b.top - z.top) + dy * 170;
 
       newLeft = clamp(newLeft, 0, z.width - b.width);
       newTop  = clamp(newTop, 0, z.height - b.height);
@@ -278,6 +290,9 @@
       noBtn.style.left = newLeft + "px";
       noBtn.style.top = newTop + "px";
       noBtn.style.transform = "none";
+
+      // small vibration when it escapes
+      vibrate(25);
 
       growYes();
     }
@@ -287,16 +302,16 @@
       if (e.touches && e.touches[0]) {
         x = e.touches[0].clientX;
         y = e.touches[0].clientY;
+      } else if (e.changedTouches && e.changedTouches[0]) {
+        x = e.changedTouches[0].clientX;
+        y = e.changedTouches[0].clientY;
       } else {
         x = e.clientX;
         y = e.clientY;
       }
 
       const b = noBtn.getBoundingClientRect();
-      const d = Math.hypot(
-        (b.left + b.width / 2) - x,
-        (b.top + b.height / 2) - y
-      );
+      const d = Math.hypot((b.left + b.width / 2) - x, (b.top + b.height / 2) - y);
 
       if (d < 180) moveNo(x, y);
     }
@@ -306,12 +321,25 @@
     zone.addEventListener("touchmove", onMove, { passive: true });
 
     noBtn.addEventListener("click", e => e.preventDefault());
+    noBtn.addEventListener("touchend", e => e.preventDefault(), { passive: false });
 
-    /* YES CLICK */
-    yesBtn.addEventListener("click", () => {
+    /* ---------- YES CLICK ---------- */
+    yesBtn.addEventListener("click", async () => {
+      // stronger vibration on YES
+      vibrate([60, 40, 60]);
+
+      // play romantic sound (works because it's user-initiated)
+      try {
+        yesSound.currentTime = 0;
+        await yesSound.play();
+      } catch (err) {
+        // some browsers block sound if not allowed — ignore silently
+      }
+
       zone.style.display = "none";
       hint.style.display = "none";
       result.style.display = "block";
+
       resizeConfettiCanvas();
       fullScreenConfetti();
     });
